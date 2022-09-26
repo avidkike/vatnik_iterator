@@ -98,12 +98,15 @@ def main():
         print("Date was not changed")
 
     group_set = set()
-    with open(r'C:\Users\ibaro\PycharmProjects\vatnik_iterator\groups.txt',
-              'r', encoding='utf-8', errors='ignore') as fl:
-        file_list = fl.readlines()
-        group_list = vk.groups.getById(group_ids=','.join(file_list))
-        for group in group_list:
-            group_set.add(group['id'])
+    try:
+        with open(r'groups.txt', 'r', encoding='utf-8', errors='ignore') as groups_file:
+            file_list = groups_file.readlines()
+            if len(file_list):
+                group_list = vk.groups.getById(group_ids=','.join(file_list))
+                for group in group_list:
+                    group_set.add(group['id'])
+    except FileNotFoundError:
+        open('groups.txt', mode='w')
 
     ans = input("\nDo you want to add user profile groups?\n")
     if ans == 'Y' or ans == 'y':
@@ -115,8 +118,8 @@ def main():
 
     group_set.update(user_groups)
 
-    if group_set.__len__ == 0:
-        print("\nNo groups were specified!!! Add groups to catalog!!!")
+    if not len(group_set):
+        print("\nNo groups were specified!!! Add groups to catalog 'groups.txt'!!!")
         return
 
     for group in group_set:
@@ -125,8 +128,7 @@ def main():
         finish_search = ''
         while True:
             try:
-                group_posts = sorted(vk.wall.get(owner_id=-group, offset=offset, count=100)['items'],
-                                     key=itemgetter('date'), reverse=True)
+                group_posts = vk.wall.get(owner_id=-group, offset=offset, count=100)['items']
             except vk_api.exceptions.ApiError as error_msg:
                 print(error_msg)
                 break
@@ -136,6 +138,10 @@ def main():
             for post in group_posts:
                 post_num += 1
                 post_date = datetime.datetime.fromtimestamp(post['date'])
+
+                if post_num == 1 and post['date'] < from_date:
+                    continue
+
                 print(f"Post({post_num}) {post['id']} datetime: {post_date.date().strftime('%d.%m.%Y').__str__()} "
                       f"({post['date']}) \n")
 
@@ -194,7 +200,20 @@ def export_to_xls(data_list, user_id):
 
 
 def authorize():
-    vk_session = vk_api.VkApi('', '', captcha_handler=captcha_handler)
+
+    try:
+        with open(r'login.txt', 'r', encoding='utf-8', errors='ignore') as login_file:
+            login = login_file.readlines()[0]
+    except FileNotFoundError:
+        login = input("\nEnter login: ")
+
+    try:
+        with open(r'password.txt', 'r', encoding='utf-8', errors='ignore') as password_file:
+            password = password_file.readlines()[0]
+    except FileNotFoundError:
+        password = input("\nEnter password: ")
+
+    vk_session = vk_api.VkApi(login, password, captcha_handler=captcha_handler)
 
     try:
         vk_session.auth()
@@ -209,6 +228,9 @@ def authorize():
     except vk_api.AuthError as error_msg:
         print(error_msg)
         return
+
+    open('login.txt', mode='w').write(login)
+    open('password.txt', mode='w').write(password)
 
     return vk_session.get_api()
 
